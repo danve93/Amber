@@ -1,21 +1,22 @@
 import asyncio
-import sys
 import os
+import sys
 
 # Add project root to path
 sys.path.append(os.getcwd())
 
 from sqlalchemy import select
-from src.core.models.document import Document
-from src.core.models.chunk import Chunk
+
 from src.core.database.session import async_session_maker
+from src.core.models.document import Document
+
 
 async def main():
     print("Searching for CarbonioUserGuide.pdf...")
     async with async_session_maker() as session:
         result = await session.execute(select(Document).where(Document.filename.ilike("%Carbonio%")))
         docs = result.scalars().all()
-        
+
         if not docs:
             print("No document found matching 'Carbonio'")
             return

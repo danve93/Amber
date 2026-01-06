@@ -1,6 +1,6 @@
 import asyncio
-import sys
 import os
+import sys
 
 # Set explicit overrides for localhost execution
 os.environ["DATABASE_URL"] = "postgresql+asyncpg://graphrag:graphrag@localhost:5432/graphrag"
@@ -8,19 +8,19 @@ os.environ["DATABASE_URL"] = "postgresql+asyncpg://graphrag:graphrag@localhost:5
 sys.path.append(os.getcwd())
 
 from sqlalchemy import select
-from src.api.config import settings
-from src.core.models.document import Document
-from src.core.models.chunk import Chunk
+
 from src.core.database.session import async_session_maker
+from src.core.models.document import Document
+
 
 async def main():
     doc_id = "doc_ef36052cc25b44cd" # CarbonioUserGuide.pdf
     print(f"Checking data for {doc_id}...")
-    
+
     async with async_session_maker() as session:
         result = await session.execute(select(Document).where(Document.id == doc_id))
         document = result.scalars().first()
-        
+
         if not document:
             print("Document not found!")
             return

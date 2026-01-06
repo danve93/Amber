@@ -3,14 +3,14 @@ import logging
 import os
 import uuid
 
+from src.api.config import settings
+from src.core.providers.factory import ProviderFactory
+from src.core.services.embeddings import EmbeddingService
+from src.core.vector_store.milvus import MilvusConfig, MilvusVectorStore
+
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
-from src.api.config import settings
-from src.core.services.embeddings import EmbeddingService
-from src.core.vector_store.milvus import MilvusVectorStore, MilvusConfig
-from src.core.providers.factory import ProviderFactory
 
 # Sample chunks about GraphRAG
 SAMPLE_CHUNKS = [
@@ -34,7 +34,7 @@ SAMPLE_CHUNKS = [
 
 async def seed_milvus():
     print(f"Seeding Milvus at {settings.db.milvus_host}:{settings.db.milvus_port}")
-    
+
     # 1. Initialize Services
     # Note: We need API key for embeddings
     api_key = os.getenv("OPENAI_API_KEY") or settings.openai_api_key
@@ -45,31 +45,31 @@ async def seed_milvus():
 
     factory = ProviderFactory(openai_api_key=api_key)
     embedding_service = EmbeddingService(provider=factory.get_embedding_provider())
-    
+
     milvus_config = MilvusConfig(
-        host=settings.db.milvus_host, 
+        host=settings.db.milvus_host,
         port=settings.db.milvus_port,
         collection_name="document_chunks"
     )
     vector_store = MilvusVectorStore(milvus_config)
-    
+
     try:
         # 2. Generate Embeddings
         print(f"Generating embeddings for {len(SAMPLE_CHUNKS)} chunks...")
-        
+
         texts = [c["content"] for c in SAMPLE_CHUNKS]
         # embed_texts returns (embeddings, stats)
         embeddings, stats = await embedding_service.embed_texts(texts, show_progress=True)
-        
+
         # 3. Upsert to Milvus
         print("Upserting to Milvus...")
-        
+
         chunks_to_upsert = []
         for i, chunk in enumerate(SAMPLE_CHUNKS):
             if not embeddings[i]:
                 print(f"Warning: Empty embedding for chunk {i}")
                 continue
-                
+
             chunks_to_upsert.append({
                 "chunk_id": f"chunk_{uuid.uuid4().hex[:16]}",
                 "document_id": chunk["document_id"],
@@ -77,18 +77,18 @@ async def seed_milvus():
                 "content": chunk["content"],
                 "embedding": embeddings[i]
             })
-            
+
         if chunks_to_upsert:
             await vector_store.upsert_chunks(chunks_to_upsert)
             print(f"✅ Seeding complete! Inserted {len(chunks_to_upsert)} chunks.")
         else:
             print("❌ No chunks to upsert.")
-        
+
     except Exception as e:
         print(f"❌ Seeding failed: {e}")
         # Print factory info to help debug
         print(f"Provider: {embedding_service.provider.provider_name}")
-        
+
     finally:
         await vector_store.disconnect()
 
