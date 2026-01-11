@@ -1,3 +1,4 @@
+import os
 import requests
 import time
 import random
@@ -20,9 +21,10 @@ QUERIES = [
 def run():
     print(f"Sending requests to {BASE_URL}...")
     
+    api_key = os.getenv("DEV_API_KEY", "amber-dev-key-2024") # Fallback to default dev key if not set
     headers = {
         "Content-Type": "application/json",
-        "X-API-Key": "amber_4vwMKxCtIAvuISc0AwwhtNDs-GOaAD7Uh-cckjaVvHM"
+        "X-API-Key": api_key
     }
     
     for i, q in enumerate(QUERIES):
