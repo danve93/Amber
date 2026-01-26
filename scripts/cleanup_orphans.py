@@ -28,14 +28,63 @@ from src.core.retrieval.infrastructure.vector_store.milvus import MilvusVectorSt
 logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
 logger = logging.getLogger(__name__)
 
-async def cleanup(dry_run=True):
+async def cleanup(dry_run=True, force_all=False):
     print("\n" + "="*50)
-    print(f"   ORPHAN CLEANUP {'(DRY RUN)' if dry_run else ''}")
+    print(f"   ORPHAN CLEANUP {'(DRY RUN)' if dry_run else ''} {'(FORCE ALL)' if force_all else ''}")
     print("="*50 + "\n")
-
     
     # Debug credentials
     # print(f"Neo4j URI: {settings.db.neo4j_uri}")
+
+    # Connect to Neo4j first
+    g_client = Neo4jClient(
+        uri=settings.db.neo4j_uri.replace("neo4j:7687", "localhost:7687"),
+        user=settings.db.neo4j_user,
+        password=settings.db.neo4j_password
+    )
+    await g_client.connect()
+
+    if force_all:
+        print("!!! FORCE ALL MODE !!!")
+        print("This will DETACH DELETE ALL nodes in Neo4j and DROP ALL Amber collections in Milvus.")
+        if not dry_run:
+            confirm = input("Are you SURE? Type 'yes' to proceed: ")
+            if confirm != "yes":
+                print("Aborted.")
+                return
+
+        # Neo4j WIPE
+        print(f"Neo4j: Wiping database...")
+        if not dry_run:
+             await g_client.execute_write("MATCH (n) DETACH DELETE n", {})
+             print("Neo4j: All nodes deleted.")
+        else:
+             print("Neo4j: [DRY RUN] Would execute MATCH (n) DETACH DELETE n")
+
+        await g_client.close()
+
+        # Milvus WIPE
+        print("Milvus: Wiping collections...")
+        from pymilvus import connections, utility
+        try:
+            connections.connect(host='localhost', port='19530')
+            collections = utility.list_collections()
+            for col_name in collections:
+                if col_name.startswith("amber_") or col_name == "document_chunks":
+                    print(f" - Found collection: {col_name}")
+                    if not dry_run:
+                        utility.drop_collection(col_name)
+                        print(f"   Deleted {col_name}")
+                    else:
+                        print(f"   [DRY RUN] Would delete {col_name}")
+        except Exception as e:
+            print(f"Milvus error: {e}")
+        finally:
+             if connections.has_connection('default'):
+                connections.disconnect('default')
+        
+        print("\nFORCE CLEANUP COMPLETE")
+        return
 
     # 1. PostgreSQL Source of Truth
     db_url = settings.db.database_url
@@ -146,6 +195,7 @@ async def cleanup(dry_run=True):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--dry-run', action='store_true', default=False)
+    parser.add_argument('--force-all', action='store_true', default=False, help="Delete EVERYTHING in Graph and Milvus regardless of Postgres state")
     args = parser.parse_args()
     
-    asyncio.run(cleanup(dry_run=args.dry_run))
+    asyncio.run(cleanup(dry_run=args.dry_run, force_all=args.force_all))
