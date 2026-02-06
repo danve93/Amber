@@ -428,7 +428,7 @@ class CarbonioWebSocketXMPP:
                     parsed_date = dateparser.parse(search_query, fuzzy=True)
                     if parsed_date:
                         logger.info(f"Parsed date from query: {parsed_date.date()}")
-                except:
+                except Exception:
                     pass
 
                 filtered = []
@@ -442,7 +442,7 @@ class CarbonioWebSocketXMPP:
                             msg_ts = dateparser.parse(m["timestamp"])
                             if msg_ts and msg_ts.date() == parsed_date.date():
                                 timestamp_match = True
-                        except:
+                        except Exception:
                             pass
 
                     if content_match or timestamp_match:
@@ -468,7 +468,7 @@ class CarbonioWebSocketXMPP:
             try:
                 await self.ws.send(f'<close xmlns="{NS_FRAMING}"/>')
                 await self.ws.close()
-            except:
+            except Exception:
                 pass
             self._connected = False
             logger.info("WebSocket XMPP disconnected")
